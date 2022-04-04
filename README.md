@@ -31,4 +31,5 @@ The Bot Need ffmpeg so here is some link to know How install it on your OS :
 **I hope Enjoy The Bot :)**
 
 ## TODO
-delete file after upload to tg
+- [x] delete file after upload to tg
+- []download music

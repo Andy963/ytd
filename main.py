@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
-from enum import Enum
+import shutil
+from pathlib import Path
 
 import requests, os, validators
 import yt_dlp
@@ -39,7 +40,7 @@ def download_file(url, quality):
     if quality == Quality.normal:
         ydl_opts_start = {
             'format': 'best',  # This Method Don't Need ffmpeg , if you don't have ffmpeg use This
-            'outtmpl': f'{download_path}/%(id)s.%(ext)s',
+            'outtmpl': f'{download_path}%(id)s.%(ext)s',
             'no_warnings': False,
             'logtostderr': False,
             'ignoreerrors': False,
@@ -52,6 +53,25 @@ def download_file(url, quality):
             title = ydl.prepare_filename(result)
             ydl.download([url])
         return f'{title}'
+
+
+def remove_file(file_path: str) -> bool:
+    """
+    Func: remove uploaded file
+    Args:
+    Example: remove_file('/opt/test.mp4')
+    Return: True/False
+    Author: Andy
+    Version: 1.0
+    Created: 2022/4/4 下午7:08
+    Modified: 2022/4/4 下午7:08
+    """
+    if Path(file_path).exists():
+        os.remove(file_path)
+        os.remove(file_path.replace('mp4', 'webp'))
+        if not Path(file_path):
+            return True
+    return False
 
 
 @app.on_message(filters.command('start', '/'))
@@ -123,24 +143,29 @@ def download(client, query):  # c Mean Client | q Mean Query
     data = query.data
     url, quality = data.split("||")
     download_msg = client.send_message(chat_id, 'Hmm!😋 Downloading...')
-    path = download_file(url, quality)
+    saved_path = download_file(url, quality)
     upload_msg = client.send_message(chat_id, 'Yeah😁 Uploading...')
     download_msg.delete()
-    thumb = path.replace('.mp4', ".jpg", -1)
+    thumb = saved_path.replace('.mp4', ".jpg", -1)
     if os.path.isfile(thumb):
         thumb = open(thumb, "rb")
-        path = open(path, 'rb')
+        path = open(saved_path, 'rb')
         client.send_photo(chat_id, thumb,
                           caption='Thumbnail of the video Downloaded')  # Edit it and add your Bot ID :)
-        client.send_video(chat_id, path, caption='Downloaded',
-                          file_name="andy", supports_streaming=True,
-                          progress=progress)  # Edit it and add your Bot ID :)
+        upload_result = client.send_video(chat_id, path, caption='Downloaded',
+                                          file_name="andy", supports_streaming=True,
+                                          progress=progress)  # Edit it and add your Bot ID :)
         upload_msg.delete()
     else:
-        path = open(path, 'rb')
-        client.send_video(chat_id, path, caption='Downloaded by @yinshan_bot',
-                          file_name="iLoader", supports_streaming=True, progress=progress)
+        path = open(saved_path, 'rb')
+        upload_result = client.send_video(chat_id, path, caption='Downloaded by @yinshan_bot',
+                                          file_name="andy", supports_streaming=True, progress=progress)
+
         upload_msg.delete()
+    if upload_result:
+        remove_msg = client.send_message(chat_id, f"video upload finish, remove from disk!")
+        remove_file(saved_path)
+        remove_msg.delete()
 
 
 if __name__ == '__main__':
