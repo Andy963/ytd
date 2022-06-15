@@ -1,6 +1,6 @@
 pyrogram==1.0.7
 tgcrypto
 requests
-yt_ydp
+yt_dlp
 validators
 ffmpeg

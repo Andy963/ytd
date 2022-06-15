@@ -26,10 +26,9 @@ The Bot Need ffmpeg so here is some link to know How install it on your OS :
 * [ffmpeg for Linux Distro](https://www.tecmint.com/install-ffmpeg-in-linux/)
 * [ffmpeg for Mac Os](https://avpres.net/FFmpeg/install_Apple.html)
 
-> Thanks to my Dear Friend [Hassan Hoot](https://github.com/hassanhoot) For The Progress Bar
 
 **I hope Enjoy The Bot :)**
 
 ## TODO
 - [x] delete file after upload to tg
-- []download music
+~~- []download music~~
