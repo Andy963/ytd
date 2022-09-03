@@ -1,10 +1,12 @@
 # -*- coding: utf-8 -*-
 
+import re
+import time
 from pathlib import Path
 
 import validators
 import yt_dlp
-from pyrogram import Client, filters
+from pyrogram import Client, filters, enums
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from config import (api_id, api_hash, token, )
 from utils import get_info, render_btn_list
@@ -14,21 +16,41 @@ app = Client("Downloader", api_id, api_hash, bot_token=token, )
 video_pattern = r"https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)"
 
 
-def download_file(url, format_id):
+def download_file(download_msg, url, format_id):
     """
+    :param download_msg: client msg obj
     :param url: video url
     :param format_id: video: 199+154, audio: 155
     :return:
     """
+    start = time.time()
+    global video_finish
+    video_finish = False
+
+    def progress_hook(data):
+        global video_finish
+        msg = data['_percent_str']
+        per = re.search(r'\d+\.\d+%', msg, )
+        if per:
+            percent = per.group(0)
+            msg = f"downloading video: {percent} used time: {time.time() - start:.1f}s"
+            if percent == '100':
+                video_finish = True
+            if not video_finish:
+                download_msg.edit(msg)
+            else:
+                msg = msg + f'\n downloading audio: {percent} total time: {time.time() - start:.1f}s'
+                download_msg.edit(msg)
+
     opt = {
         "format": format_id,
         "format_id": format_id,
         "outtmpl": f"%(title)s.%(ext)s",
         "noplaylist": True,
         "writethumbnail": False,
-        "final_ext": f"%(ext)s"
+        "final_ext": f"%(ext)s",
+        'progress_hooks': [progress_hook]
     }
-    print('opt', opt)
     with yt_dlp.YoutubeDL(opt) as ydl:
         result = ydl.extract_info(url, download=True)
         title = result.get('title')
@@ -102,17 +124,30 @@ def webpage(client, message):
 @app.on_callback_query()
 def download(client, query):  # c Mean Client | q Mean Query
 
+    bar = '=' * 20
+
+    def progress(current, total):
+
+        if current != total:
+            symbol = re.sub('=', '>', bar, int(current * 20 / total))
+            upload_msg.edit(f"{symbol}{current * 100 / total:.1f}%")
+        else:
+            upload_msg.delete()
+
     chat_id = query.message.chat.id
     data = query.data
     url, opts = data.split("||")
-    download_msg = client.send_message(chat_id, 'Hmm!😋 Downloading...')
-    saved_path, title = download_file(url, opts)
+    download_msg = client.send_message(chat_id, 'Start Downloading...')
+    saved_path, title = download_file(download_msg, url, opts)
+    upload_msg = client.send_message(chat_id, bar + "0% uploaded")
     with open(saved_path, 'rb') as fp:
+        client.send_chat_action(chat_id, enums.ChatAction.UPLOAD_VIDEO)
         upload_result = client.send_video(chat_id, fp, caption=title,
                                           file_name=title, supports_streaming=True,
+                                          progress=progress
                                           )
-    remove_file(saved_path)
     download_msg.delete()
+    remove_file(saved_path)
 
 
 if __name__ == '__main__':
