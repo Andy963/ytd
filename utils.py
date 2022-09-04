@@ -1,6 +1,9 @@
 # ！/usr/bin/env python
 # encoding:utf-8
 # Created by Andy at 2022/9/3
+import time
+from datetime import datetime
+from pathlib import Path
 import yt_dlp
 
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
@@ -74,6 +77,73 @@ def render_btn_list(url: str, videos: list, audios: list, num=5):
         a_id = a.get("format_id")
         audio_btn.append(InlineKeyboardButton(a['format_note'], callback_data=f"{url}||{a_id}"))
     return video_btn, audio_btn
+
+
+def get_val_or_default(data, key):
+    val = data.get(key)
+    try:
+        val = int(val)
+    except Exception:
+        val = 0
+    return val
+
+
+def download_file(download_msg, url, format_id):
+    """
+    :param download_msg: client msg obj
+    :param url: video url
+    :param format_id: video: 199+154, audio: 155
+    :return:
+    """
+    start = time.time()
+
+    def progress_hook(data):
+        speed = get_val_or_default(data, 'speed') / 1024 / 1024
+        eta = get_val_or_default(data, 'eta')
+        downloaded = get_val_or_default(data, 'downloaded_bytes') / 1024 / 1024
+        total = get_val_or_default(data, 'total_bytes') / 1024 / 1024
+        download_msg.edit(
+            f"Download started: {datetime.now().strftime('%H:%m:%S.%f')[:-4]} \n"
+            f"Total {total:.2f}M downloaded {downloaded:.2f}M \n"
+            f"Elapsed {time.time() - start:.1f}s, speed {speed:.1f}m/s, eta {eta}s"
+        )
+
+    opt = {
+        "format": format_id,
+        "format_id": format_id,
+        "outtmpl": f"%(title)s.%(ext)s",
+        "noplaylist": True,
+        "writethumbnail": False,
+        "final_ext": f"%(ext)s",
+        'progress_hooks': [progress_hook]
+    }
+    with yt_dlp.YoutubeDL(opt) as ydl:
+        result = ydl.extract_info(url, download=True)
+        title = result.get('title')
+        saved_path = ydl.prepare_filename(result)
+        return saved_path, title
+
+
+def remove_file(file_path: str) -> bool:
+    """
+    Func: remove uploaded file, with file_name pattern
+    Args:
+    Example: remove_file('/opt/test.mp4')
+    Return: True/False
+    Author: Andy
+    Version: 1.0
+    Created: 2022/4/4 下午7:08
+    Modified: 2022/4/4 下午7:08
+    """
+    pt = Path(file_path)
+    try:
+        if pt.exists():
+            for file in pt.parent.iterdir():
+                if pt.stem in str(file):
+                    file.unlink()
+        return True
+    except Exception as e:
+        return False
 
 
 if __name__ == '__main__':

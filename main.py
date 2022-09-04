@@ -1,99 +1,16 @@
 # -*- coding: utf-8 -*-
 
 import re
-import time
-from pathlib import Path
 
 import validators
-import yt_dlp
+
 from pyrogram import Client, filters, enums
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from config import (api_id, api_hash, token, )
-from utils import get_info, render_btn_list
+from utils import get_info, render_btn_list, download_file, remove_file
 
 app = Client("Downloader", api_id, api_hash, bot_token=token, )
-# proxy=dict(hostname="127.0.0.1", port=51837)
 video_pattern = r"https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)"
-
-
-def progress_bar(percent, num=20):
-    if isinstance(percent, str):
-        if '%' in percent:
-            percent = percent.replace('%', '')
-            percent = float(percent) / 100
-    s = '[' + ' ' * num + ']'
-    return re.sub(' ', '>', s, int(num * percent))
-
-
-def download_file(download_msg, url, format_id):
-    """
-    :param download_msg: client msg obj
-    :param url: video url
-    :param format_id: video: 199+154, audio: 155
-    :return:
-    """
-    start = time.time()
-    global video_finish, msg, video_time
-    video_finish = False
-    msg = '[' + ' ' * 20 + ']'
-    video_time = 0
-
-    def progress_hook(data):
-        global video_finish, msg, video_time
-        tmp = data['_percent_str']
-        per = re.search(r'\d+\.\d+%', tmp)
-        if per:
-            percent = per.group(0)
-            if percent == '100.0%' and not video_finish:
-                video_time = time.time() - start
-                video_finish = True
-                msg = f"downloading video: 100.0% used time: {video_time:.1f}s"
-                download_msg.edit(msg)
-            if not video_finish:
-                if percent != '0.0%':
-                    print(f"#{percent}#")
-                    msg = f"{progress_bar(percent)}\ndownloading video: {percent} used time: {time.time() - start:.1f}s"
-                    download_msg.edit(msg)
-            else:
-                msg = f'downloading video: 100.0% used time: {video_time:.1f}s\n{progress_bar(percent)}\ndownloading audio: {percent} total time: {time.time() - start:.1f}s'
-                download_msg.edit(msg)
-
-    opt = {
-        "format": format_id,
-        "format_id": format_id,
-        "outtmpl": f"%(title)s.%(ext)s",
-        "noplaylist": True,
-        "writethumbnail": False,
-        "final_ext": f"%(ext)s",
-        'progress_hooks': [progress_hook]
-    }
-    with yt_dlp.YoutubeDL(opt) as ydl:
-        result = ydl.extract_info(url, download=True)
-        title = result.get('title')
-        saved_path = ydl.prepare_filename(result)
-        return saved_path, title
-
-
-def remove_file(file_path: str) -> bool:
-    """
-    Func: remove uploaded file, with file_name pattern
-    Args:
-    Example: remove_file('/opt/test.mp4')
-    Return: True/False
-    Author: Andy
-    Version: 1.0
-    Created: 2022/4/4 下午7:08
-    Modified: 2022/4/4 下午7:08
-    """
-    pt = Path(file_path)
-    try:
-        if pt.exists():
-            for file in pt.parent.iterdir():
-                if pt.stem in str(file):
-                    file.unlink()
-        return True
-    except Exception as e:
-        return False
 
 
 @app.on_message(filters.command('start', '/'))
@@ -124,7 +41,7 @@ def webpage(client, message):
         client.send_message(
             chat_id,
             (f"Good! {url} is a valid video url.\n"
-             f"now please select quality:\n"
+             f"Now please select quality:\n"
              ),
             reply_markup=InlineKeyboardMarkup(
                 [
@@ -156,13 +73,13 @@ def download(client, query):  # c Mean Client | q Mean Query
     download_msg = client.send_message(chat_id, 'Start Downloading...')
     saved_path, title = download_file(download_msg, url, opts)
     download_msg.delete()
-    upload_msg = client.send_message(chat_id, bar + "0% uploaded")
     with open(saved_path, 'rb') as fp:
         client.send_chat_action(chat_id, enums.ChatAction.UPLOAD_VIDEO)
-        upload_result = client.send_video(chat_id, fp, caption=title,
-                                          file_name=title, supports_streaming=True,
-                                          progress=progress
-                                          )
+        upload_msg = client.send_message(chat_id, bar + " upload will start soon")
+        client.send_video(chat_id, fp, caption=title,
+                          file_name=title, supports_streaming=True,
+                          progress=progress
+                          )
     remove_file(saved_path)
 
 
