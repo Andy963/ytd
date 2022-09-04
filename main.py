@@ -16,6 +16,15 @@ app = Client("Downloader", api_id, api_hash, bot_token=token, )
 video_pattern = r"https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)"
 
 
+def progress_bar(percent, num=20):
+    if isinstance(percent, str):
+        if '%' in percent:
+            percent = percent.replace('%', '')
+            percent = float(percent) / 100
+    s = '[' + ' ' * num + ']'
+    return re.sub(' ', '>', s, int(num * percent))
+
+
 def download_file(download_msg, url, format_id):
     """
     :param download_msg: client msg obj
@@ -24,22 +33,29 @@ def download_file(download_msg, url, format_id):
     :return:
     """
     start = time.time()
-    global video_finish
+    global video_finish, msg, video_time
     video_finish = False
+    msg = '[' + ' ' * 20 + ']'
+    video_time = 0
 
     def progress_hook(data):
-        global video_finish
-        msg = data['_percent_str']
-        per = re.search(r'\d+\.\d+%', msg, )
+        global video_finish, msg, video_time
+        tmp = data['_percent_str']
+        per = re.search(r'\d+\.\d+%', tmp)
         if per:
             percent = per.group(0)
-            msg = f"downloading video: {percent} used time: {time.time() - start:.1f}s"
-            if percent == '100':
+            if percent == '100.0%' and not video_finish:
+                video_time = time.time() - start
                 video_finish = True
-            if not video_finish:
+                msg = f"downloading video: 100.0% used time: {video_time:.1f}s"
                 download_msg.edit(msg)
+            if not video_finish:
+                if percent != '0.0%':
+                    print(f"#{percent}#")
+                    msg = f"{progress_bar(percent)}\ndownloading video: {percent} used time: {time.time() - start:.1f}s"
+                    download_msg.edit(msg)
             else:
-                msg = msg + f'\n downloading audio: {percent} total time: {time.time() - start:.1f}s'
+                msg = f'downloading video: 100.0% used time: {video_time:.1f}s\n{progress_bar(percent)}\ndownloading audio: {percent} total time: {time.time() - start:.1f}s'
                 download_msg.edit(msg)
 
     opt = {
@@ -139,6 +155,7 @@ def download(client, query):  # c Mean Client | q Mean Query
     url, opts = data.split("||")
     download_msg = client.send_message(chat_id, 'Start Downloading...')
     saved_path, title = download_file(download_msg, url, opts)
+    download_msg.delete()
     upload_msg = client.send_message(chat_id, bar + "0% uploaded")
     with open(saved_path, 'rb') as fp:
         client.send_chat_action(chat_id, enums.ChatAction.UPLOAD_VIDEO)
@@ -146,7 +163,6 @@ def download(client, query):  # c Mean Client | q Mean Query
                                           file_name=title, supports_streaming=True,
                                           progress=progress
                                           )
-    download_msg.delete()
     remove_file(saved_path)
 
 
