@@ -1,6 +1,7 @@
 # ！/usr/bin/env python
 # encoding:utf-8
 # Created by Andy at 2022/9/3
+import random
 import time
 from datetime import datetime
 from pathlib import Path
@@ -48,7 +49,11 @@ def parse_formats(title: str, formats: list) -> tuple:
 
 
 def get_info(url: str) -> tuple:
-    with yt_dlp.YoutubeDL() as ydl:
+    interval = random.randint(1, 3)
+    opts = {
+        "sleep_interval_requests": interval
+    }
+    with yt_dlp.YoutubeDL(opts) as ydl:
         result = ydl.extract_info(url, download=False)
         if "formats" in result.keys():
             title = result.get('title')
@@ -107,7 +112,9 @@ def download_file(download_msg=None, url='', format_id='best'):
             f"Total {total:.2f}M downloaded {downloaded:.2f}M \n"
             f"Elapsed {time.time() - start:.1f}s, speed {speed:.1f}m/s, eta {eta}s"
         )
-        time.sleep(1)
+        # time.sleep(1) never use it here, it will make your speed less than 1kb/s
+
+    interval = random.randint(1, 3)
     opt = {
         "format": format_id,
         "format_id": format_id,
@@ -115,6 +122,13 @@ def download_file(download_msg=None, url='', format_id='best'):
         "noplaylist": True,
         "writethumbnail": False,
         "final_ext": f"%(ext)s",
+        "trim_file_name": 50,
+        "windowsfilenames": True,
+        "quiet": True,
+        "restrictfilenames": True,
+        "sleep_interval": interval,
+        "ffmpeg_location": "/opt/ytd/ffmpeg/bin"  # it's seems this not matters at all
+
     }
     if download_msg:
         opt["progress_hooks"] = [progress_hook]
@@ -149,7 +163,7 @@ def remove_file(file_path: str) -> bool:
 
 
 if __name__ == '__main__':
-    url = "https://twitter.com/_thefigen/status/1566352873444753417?s=28&t=pHatJKPBtyPkRw_wjCr-oQ"
+    url = "https://www.youtube.com/watch?v=Y9c0e10FPJw"
     videos, audios = get_info(url)
     print(videos)
     print(audios)

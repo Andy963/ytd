@@ -79,17 +79,16 @@ def upload_file(saved_path, client, chat_id, title):
         if current != total:
             symbol = re.sub('=', '>', bar, int(current * 20 / total))
             upload_msg.edit(f"{symbol}{current * 100 / total:.1f}%")
+            client.send_chat_action(chat_id, enums.ChatAction.UPLOAD_VIDEO)
         else:
             upload_msg.delete()
-        time.sleep(1)
 
+    upload_msg = client.send_message(chat_id, bar + " upload will start soon")
     with open(saved_path, 'rb') as fp:
-        upload_msg = client.send_message(chat_id, bar + " upload will start soon")
         client.send_video(chat_id, fp, caption=title,
                           file_name=title, supports_streaming=True,
                           progress=progress
                           )
-        client.send_chat_action(chat_id, enums.ChatAction.UPLOAD_VIDEO)
 
 
 if __name__ == '__main__':
