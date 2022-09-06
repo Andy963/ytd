@@ -6,7 +6,8 @@ config.py
 __pycache__/
 *.py[cod]
 *$py.class
-
+.idea
+Downloader.session
 # C extensions
 *.so
 
