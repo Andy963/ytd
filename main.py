@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import re
+import time
 
 import validators
 
@@ -36,51 +37,59 @@ def webpage(client, message):
     url = message.text
     if validators.url(url):
         videos, audios = get_info(url)
-        video_btn, audio_btn = render_btn_list(url, videos, audios)
-        chat_id = message.chat.id
-        client.send_message(
-            chat_id,
-            (f"Good! {url} is a valid video url.\n"
-             f"Now please select quality:\n"
-             ),
-            reply_markup=InlineKeyboardMarkup(
-                [
-                    video_btn,
-                    audio_btn
-                ]
-            ), disable_web_page_preview=True
-        )
+        if not videos:
+            saved_path, title = download_file(url=url)
+            upload_file(saved_path, client, message.chat.id, title)
+            remove_file(saved_path)
+        else:
+            video_btn, audio_btn = render_btn_list(url, videos, audios)
+            chat_id = message.chat.id
+            client.send_message(
+                chat_id,
+                (f"Good! {url} is a valid video url.\n"
+                 f"Now please select quality:\n"
+                 ),
+                reply_markup=InlineKeyboardMarkup(
+                    [
+                        video_btn,
+                        audio_btn
+                    ]
+                ), disable_web_page_preview=True
+            )
     else:
         client.send_message(message.chat.id, "Send The Valid Url Please")
 
 
 @app.on_callback_query()
 def download(client, query):  # c Mean Client | q Mean Query
-
-    bar = '=' * 20
-
-    def progress(current, total):
-
-        if current != total:
-            symbol = re.sub('=', '>', bar, int(current * 20 / total))
-            upload_msg.edit(f"{symbol}{current * 100 / total:.1f}%")
-        else:
-            upload_msg.delete()
-
     chat_id = query.message.chat.id
     data = query.data
     url, opts = data.split("||")
     download_msg = client.send_message(chat_id, 'Start Downloading...')
     saved_path, title = download_file(download_msg, url, opts)
     download_msg.delete()
+    upload_file(saved_path, client, chat_id, title)
+    remove_file(saved_path)
+
+
+def upload_file(saved_path, client, chat_id, title):
+    bar = '=' * 20
+
+    def progress(current, total):
+        if current != total:
+            symbol = re.sub('=', '>', bar, int(current * 20 / total))
+            upload_msg.edit(f"{symbol}{current * 100 / total:.1f}%")
+        else:
+            upload_msg.delete()
+        time.sleep(1)
+
     with open(saved_path, 'rb') as fp:
-        client.send_chat_action(chat_id, enums.ChatAction.UPLOAD_VIDEO)
         upload_msg = client.send_message(chat_id, bar + " upload will start soon")
         client.send_video(chat_id, fp, caption=title,
                           file_name=title, supports_streaming=True,
                           progress=progress
                           )
-    remove_file(saved_path)
+        client.send_chat_action(chat_id, enums.ChatAction.UPLOAD_VIDEO)
 
 
 if __name__ == '__main__':

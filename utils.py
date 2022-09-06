@@ -17,17 +17,17 @@ def parse_formats(title: str, formats: list) -> tuple:
     fields = ['format_id', 'format_note', 'filesize', 'ext', 'quality', 'height', 'width', 'language',
               'downloader_options', 'title', 'url']
     for f in formats:
-        if not f['vcodec'] or not f['acodec']:
+        if not f.get('vcodec') or not f.get('acodec'):
             continue
         fl = dict(zip(fields, list(map(f.get, fields))))
 
         if not fl.get('filesize'):
             continue
-        if not fl['format_id'].isdigit():
+        if not fl.get('format_id').isdigit():
             continue
         f['title'] = title
-        if fl['downloader_options']:
-            fl['chunk_size'] = fl['downloader_options'].get('http_chunk_size', 0)
+        if fl.get('downloader_options'):
+            fl['chunk_size'] = fl.get('downloader_options').get('http_chunk_size', 0)
         # if two 1080p will only keep one
         if not fl.get('height') and not fl.get('width'):
             if fl.get('format_note') not in audio_tag:
@@ -42,8 +42,8 @@ def parse_formats(title: str, formats: list) -> tuple:
                 fl['format_note'] = f_note
                 video_list.append(fl)
 
-    video_list.sort(key=lambda x: x['filesize'], reverse=True)
-    audio_list.sort(key=lambda x: x['filesize'], reverse=True)
+    video_list.sort(key=lambda x: x.get('filesize'), reverse=True)
+    audio_list.sort(key=lambda x: x.get('filesize'), reverse=True)
     return video_list, audio_list
 
 
@@ -88,7 +88,7 @@ def get_val_or_default(data, key):
     return val
 
 
-def download_file(download_msg, url, format_id):
+def download_file(download_msg=None, url='', format_id='best'):
     """
     :param download_msg: client msg obj
     :param url: video url
@@ -107,7 +107,7 @@ def download_file(download_msg, url, format_id):
             f"Total {total:.2f}M downloaded {downloaded:.2f}M \n"
             f"Elapsed {time.time() - start:.1f}s, speed {speed:.1f}m/s, eta {eta}s"
         )
-
+        time.sleep(1)
     opt = {
         "format": format_id,
         "format_id": format_id,
@@ -115,8 +115,10 @@ def download_file(download_msg, url, format_id):
         "noplaylist": True,
         "writethumbnail": False,
         "final_ext": f"%(ext)s",
-        'progress_hooks': [progress_hook]
     }
+    if download_msg:
+        opt["progress_hooks"] = [progress_hook]
+
     with yt_dlp.YoutubeDL(opt) as ydl:
         result = ydl.extract_info(url, download=True)
         title = result.get('title')
@@ -147,5 +149,7 @@ def remove_file(file_path: str) -> bool:
 
 
 if __name__ == '__main__':
-    url = "https://youtu.be/lWQ4SsZQAhQ"
+    url = "https://twitter.com/_thefigen/status/1566352873444753417?s=28&t=pHatJKPBtyPkRw_wjCr-oQ"
     videos, audios = get_info(url)
+    print(videos)
+    print(audios)
