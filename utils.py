@@ -2,12 +2,18 @@
 # encoding:utf-8
 # Created by Andy at 2022/9/3
 import random
-import time
-from datetime import datetime
-from pathlib import Path
-import yt_dlp
+import re
+import asyncio
 
-from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
+
+import yt_dlp
+from pyrogram import enums
+from pyrogram.types import InlineKeyboardButton
+
+_executor = ThreadPoolExecutor(max_workers=6)
+loop = asyncio.get_event_loop()
 
 
 def parse_formats(title: str, formats: list) -> tuple:
@@ -48,13 +54,12 @@ def parse_formats(title: str, formats: list) -> tuple:
     return video_list, audio_list
 
 
-def get_info(url: str) -> tuple:
-    interval = random.randint(1, 3)
+async def get_info(url: str) -> tuple:
     opts = {
-        "sleep_interval_requests": interval
+        "sleep_interval_requests": random.random()
     }
     with yt_dlp.YoutubeDL(opts) as ydl:
-        result = ydl.extract_info(url, download=False)
+        result = await loop.run_in_executor(_executor, ydl.extract_info, url, False)
         if "formats" in result.keys():
             title = result.get('title')
             return parse_formats(title, result.get("formats"))
@@ -88,33 +93,20 @@ def get_val_or_default(data, key):
     val = data.get(key)
     try:
         val = int(val)
-    except Exception:
+    except ValueError:
         val = 0
     return val
 
 
-def download_file(download_msg=None, url='', format_id='best'):
+async def download_file(download_msg=None, url='', format_id='best'):
     """
     :param download_msg: client msg obj
     :param url: video url
     :param format_id: video: 199+154, audio: 155
     :return:
     """
-    start = time.time()
 
-    def progress_hook(data):
-        speed = get_val_or_default(data, 'speed') / 1024 / 1024
-        eta = get_val_or_default(data, 'eta')
-        downloaded = get_val_or_default(data, 'downloaded_bytes') / 1024 / 1024
-        total = get_val_or_default(data, 'total_bytes') / 1024 / 1024
-        download_msg.edit(
-            f"Download started: {datetime.now().strftime('%H:%m:%S.%f')[:-4]} \n"
-            f"Total {total:.2f}M downloaded {downloaded:.2f}M \n"
-            f"Elapsed {time.time() - start:.1f}s, speed {speed:.1f}m/s, eta {eta}s"
-        )
-        # time.sleep(1) never use it here, it will make your speed less than 1kb/s
-
-    interval = random.randint(1, 3)
+    interval = random.random()
     opt = {
         "format": format_id,
         "format_id": format_id,
@@ -124,23 +116,38 @@ def download_file(download_msg=None, url='', format_id='best'):
         "final_ext": f"%(ext)s",
         "trim_file_name": 50,
         "windowsfilenames": True,
-        "quiet": True,
         "restrictfilenames": True,
         "sleep_interval": interval,
         "ffmpeg_location": "/opt/ytd/ffmpeg/bin"  # it's seems this not matters at all
 
     }
-    if download_msg:
-        opt["progress_hooks"] = [progress_hook]
-
     with yt_dlp.YoutubeDL(opt) as ydl:
-        result = ydl.extract_info(url, download=True)
+        result = await loop.run_in_executor(_executor, ydl.extract_info, url, True)
+        saved_path = await loop.run_in_executor(_executor, ydl.prepare_filename, result)
         title = result.get('title')
-        saved_path = ydl.prepare_filename(result)
         return saved_path, title
 
 
-def remove_file(file_path: str) -> bool:
+async def upload_file(saved_path, client, chat_id, title):
+    bar = '=' * 20
+
+    async def progress(current, total):
+        if current != total:
+            symbol = re.sub('=', '>', bar, int(current * 20 / total))
+            await upload_f_msg.edit(f"{symbol}{current * 100 / total:.1f}%")
+            await client.send_chat_action(chat_id, enums.ChatAction.UPLOAD_VIDEO)
+            await asyncio.sleep(random.randint(5, 10))
+        else:
+            await upload_f_msg.delete()
+
+    upload_f_msg = await client.send_message(chat_id, bar + " upload will start soon")
+    await client.send_video(chat_id, saved_path, caption=title,
+                            file_name=title, supports_streaming=True,
+                            progress=progress, reply_to_message_id=chat_id
+                            )
+
+
+async def remove_file(file_path: str) -> bool:
     """
     Func: remove uploaded file, with file_name pattern
     Args:
@@ -158,12 +165,5 @@ def remove_file(file_path: str) -> bool:
                 if pt.stem in str(file):
                     file.unlink()
         return True
-    except Exception as e:
+    except FileNotFoundError as e:
         return False
-
-
-if __name__ == '__main__':
-    url = "https://www.youtube.com/watch?v=Y9c0e10FPJw"
-    videos, audios = get_info(url)
-    print(videos)
-    print(audios)
