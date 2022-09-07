@@ -10,6 +10,7 @@ from pathlib import Path
 
 import yt_dlp
 from pyrogram import enums
+from pyrogram.errors import FloodWait
 from pyrogram.types import InlineKeyboardButton
 
 _executor = ThreadPoolExecutor(max_workers=6)
@@ -106,7 +107,6 @@ async def download_file(download_msg=None, url='', format_id='best'):
     :return:
     """
 
-    interval = random.random()
     opt = {
         "format": format_id,
         "format_id": format_id,
@@ -116,10 +116,7 @@ async def download_file(download_msg=None, url='', format_id='best'):
         "final_ext": f"%(ext)s",
         "trim_file_name": 50,
         "windowsfilenames": True,
-        "restrictfilenames": True,
-        "sleep_interval": interval,
-        "ffmpeg_location": "/opt/ytd/ffmpeg/bin"  # it's seems this not matters at all
-
+        "sleep_interval": random.random()
     }
     with yt_dlp.YoutubeDL(opt) as ydl:
         result = await loop.run_in_executor(_executor, ydl.extract_info, url, True)
@@ -134,9 +131,14 @@ async def upload_file(saved_path, client, chat_id, title):
     async def progress(current, total):
         if current != total:
             symbol = re.sub('=', '>', bar, int(current * 20 / total))
-            await upload_f_msg.edit(f"{symbol}{current * 100 / total:.1f}%")
-            await client.send_chat_action(chat_id, enums.ChatAction.UPLOAD_VIDEO)
-            await asyncio.sleep(random.randint(5, 10))
+
+            if int(current * 100 / total) % 10 == 0:
+                await asyncio.sleep(1)
+                try:
+                    await upload_f_msg.edit(f"{symbol} {current * 100 / total:.1f}%")
+                    await client.send_chat_action(chat_id, enums.ChatAction.UPLOAD_VIDEO)
+                except FloodWait as e:
+                    await asyncio.sleep(e.value)
         else:
             await upload_f_msg.delete()
 

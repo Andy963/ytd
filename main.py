@@ -72,10 +72,10 @@ async def download(client, query):  # c Mean Client | q Mean Query
     download_task = asyncio.create_task(download_file(url=url, format_id=opts))
     finished_download, unfinished = await asyncio.wait([download_task])
     for downloaded in finished_download:
+        await download_f_msg.delete()
         saved_path, title = downloaded.result()
         await upload_file(saved_path, client, chat_id, title)
         await remove_file(saved_path)
-        await download_f_msg.delete()
 
 
 if __name__ == '__main__':
