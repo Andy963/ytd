@@ -40,9 +40,12 @@ async def webpage(client, message):
             videos, audios = get.result()
             if not videos:
                 other_task = asyncio.create_task(download_file(url=url))
-                saved_path, title = await asyncio.wait(other_task)
-                await upload_file(saved_path, client, message.chat.id, title)
-                await remove_file(saved_path)
+                # wait args must be a list, and the return is a set
+                finished_others, _ = await asyncio.wait([other_task])
+                for finished_o in finished_others:
+                    saved_path, title = finished_o.result()
+                    await upload_file(saved_path, client, message.chat.id, title)
+                    await remove_file(saved_path)
             else:
                 video_btn, audio_btn = render_btn_list(url, videos, audios)
                 chat_id = message.chat.id
