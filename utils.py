@@ -5,16 +5,12 @@ import random
 import re
 import asyncio
 
-from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import yt_dlp
 from pyrogram import enums
 from pyrogram.errors import FloodWait
 from pyrogram.types import InlineKeyboardButton
-
-_executor = ThreadPoolExecutor(max_workers=6)
-loop = asyncio.get_event_loop()
 
 
 def parse_formats(title: str, formats: list) -> tuple:
@@ -60,7 +56,8 @@ async def get_info(url: str) -> tuple:
         "sleep_interval_requests": random.random()
     }
     with yt_dlp.YoutubeDL(opts) as ydl:
-        result = await loop.run_in_executor(_executor, ydl.extract_info, url, False)
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(None, ydl.extract_info, url, False)
         if "formats" in result.keys():
             title = result.get('title')
             return parse_formats(title, result.get("formats"))
@@ -119,8 +116,9 @@ async def download_file(download_msg=None, url='', format_id='best'):
         "sleep_interval": random.random()
     }
     with yt_dlp.YoutubeDL(opt) as ydl:
-        result = await loop.run_in_executor(_executor, ydl.extract_info, url, True)
-        saved_path = await loop.run_in_executor(_executor, ydl.prepare_filename, result)
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(None, ydl.extract_info, url, True)
+        saved_path = await loop.run_in_executor(None, ydl.prepare_filename, result)
         title = result.get('title')
         return saved_path, title
 

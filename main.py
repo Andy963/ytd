@@ -2,12 +2,13 @@
 import asyncio
 
 import validators
-
+import uvloop
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup
 from utils import get_info, render_btn_list, download_file, remove_file, upload_file
 from config import (api_id, api_hash, token)
 
+uvloop.install()
 app = Client("ytd", api_id, api_hash, bot_token=token, )
 video_pattern = r"https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)"
 
