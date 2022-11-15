@@ -3,6 +3,7 @@
 # Created by Andy at 2022/9/3
 import random
 import re
+import os
 import asyncio
 
 from pathlib import Path
@@ -141,8 +142,9 @@ async def upload_file(saved_path, client, chat_id, title):
             await upload_f_msg.delete()
 
     upload_f_msg = await client.send_message(chat_id, bar + " upload will start soon")
+    _, ext = os.path.splitext(saved_path)
     await client.send_video(chat_id, saved_path, caption=title,
-                            file_name=title, supports_streaming=True,
+                            file_name=f"{title}{ext}", supports_streaming=True,
                             progress=progress, reply_to_message_id=chat_id
                             )
 
