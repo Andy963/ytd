@@ -16,6 +16,7 @@ from pyrogram.types import InlineKeyboardButton
 
 def parse_formats(title: str, formats: list) -> tuple:
     """get field from  extracted info"""
+    high_v = ['4320p','2160p','1440p']
     video_list, video_tag = [], []
     audio_list, audio_tag = [], []
 
@@ -42,7 +43,8 @@ def parse_formats(title: str, formats: list) -> tuple:
             f_note = fl.get('format_note')
             f_note = f_note.lower()
             f_note = f_note.split('p')[0] + 'p'
-            if f_note not in video_tag:
+            # 2160p, 1440p 文件会非常大，无法上传到tg 直接不考虑
+            if f_note not in high_v and f_note not in video_tag:
                 video_tag.append(f_note)
                 fl['format_note'] = f_note
                 video_list.append(fl)
@@ -134,7 +136,7 @@ async def upload_file(saved_path, client, chat_id, title):
             if int(current * 100 / total) % 10 == 0:
                 await asyncio.sleep(1)
                 try:
-                    await upload_f_msg.edit(f"{symbol} {current * 100 / total:.1f}%")
+                    await upload_f_msg.edit(f"{symbol} {current * 100 / total:.2f}%")
                     await client.send_chat_action(chat_id, enums.ChatAction.UPLOAD_VIDEO)
                 except FloodWait as e:
                     await asyncio.sleep(e.value)
