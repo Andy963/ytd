@@ -16,7 +16,7 @@ from pyrogram.types import InlineKeyboardButton
 
 def parse_formats(title: str, formats: list) -> tuple:
     """get field from  extracted info"""
-    high_v = ['4320p','2160p','1440p']
+    hight_v = ['4320p','2160p','1440p']
     video_list, video_tag = [], []
     audio_list, audio_tag = [], []
 
@@ -43,8 +43,7 @@ def parse_formats(title: str, formats: list) -> tuple:
             f_note = fl.get('format_note')
             f_note = f_note.lower()
             f_note = f_note.split('p')[0] + 'p'
-            # 2160p, 1440p 文件会非常大，无法上传到tg 直接不考虑
-            if f_note not in high_v and f_note not in video_tag:
+            if f_note not in hight_v and  f_note not in video_tag:
                 video_tag.append(f_note)
                 fl['format_note'] = f_note
                 video_list.append(fl)
@@ -108,12 +107,14 @@ async def download_file(download_msg=None, url='', format_id='best'):
     """
 
     opt = {
+        "username":'zjgxs519@gmail.com',
+        "password":'zjgg219@zjg',
         "format": format_id,
         "format_id": format_id,
-        "outtmpl": f"%(title)s.%(ext)s",
+        "outtmpl": "%(title)s.%(ext)s",
         "noplaylist": True,
         "writethumbnail": False,
-        "final_ext": f"%(ext)s",
+        "final_ext": "%(ext)s",
         "trim_file_name": 50,
         "windowsfilenames": True,
         "sleep_interval": random.random()
