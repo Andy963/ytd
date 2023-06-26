@@ -1,12 +1,13 @@
 # -*- coding: utf-8 -*-
 import asyncio
 
-import validators
 import uvloop
+import validators
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup
-from utils import get_info, render_btn_list, download_file, remove_file, upload_file
+
 from config import (api_id, api_hash, token)
+from utils import get_info, render_btn_list, download_file, remove_file, upload_file
 
 uvloop.install()
 app = Client("ytd", api_id, api_hash, bot_token=token, )
@@ -73,7 +74,7 @@ async def download(client, query):  # c Mean Client | q Mean Query
     data = query.data
     url, opts = data.split("||")
     download_f_msg = await client.send_message(chat_id, 'Start Downloading...')
-    download_task = asyncio.create_task(download_file(url=url, format_id=opts))
+    download_task = asyncio.create_task(download_file(download_msg=download_f_msg, url=url, format_id=opts))
     finished_download, unfinished = await asyncio.wait([download_task])
     for downloaded in finished_download:
         await download_f_msg.delete()

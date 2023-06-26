@@ -1,11 +1,11 @@
 # ！/usr/bin/env python
 # encoding:utf-8
 # Created by Andy at 2022/9/3
+import asyncio
+import math
+import os
 import random
 import re
-import os
-import asyncio
-
 from pathlib import Path
 
 import yt_dlp
@@ -13,28 +13,30 @@ from pyrogram import enums
 from pyrogram.errors import FloodWait
 from pyrogram.types import InlineKeyboardButton
 
+start = 0
+prev = 0
+upload_loop = None
+
 
 def parse_formats(title: str, formats: list) -> tuple:
     """get field from  extracted info"""
-    hight_v = ['4320p','2160p','1440p']
+    hight_v = ['4320p', '2160p', '1440p']
     video_list, video_tag = [], []
     audio_list, audio_tag = [], []
 
     fields = ['format_id', 'format_note', 'filesize', 'ext', 'quality', 'height', 'width', 'language',
-              'downloader_options', 'title', 'url']
-    for f in formats:
-        if not f.get('vcodec') or not f.get('acodec'):
-            continue
-        fl = dict(zip(fields, list(map(f.get, fields))))
+              'downloader_options', 'title', 'acodec', 'vcodec']
+    format_infos = [dict(zip(fields, list(map(f.get, fields)))) for f in formats]
 
-        if not fl.get('filesize'):
+    for fl in format_infos:
+        if not fl.get('filesize') or not str(fl.get('filesize')).isdigit():
             continue
-        if not fl.get('format_id').isdigit():
+        fl['filesize'] = math.ceil(fl.get('filesize') / 1000 / 1000)
+        if fl.get('filesize') > 2000:
             continue
-        f['title'] = title
-        if fl.get('downloader_options'):
-            fl['chunk_size'] = fl.get('downloader_options').get('http_chunk_size', 0)
-        # if two 1080p will only keep one
+        if fl.get('ext') not in ['mp4', 'mkv', 'webm', 'm4a', 'mp3', 'wav']:
+            continue
+        # audio has no height and width
         if not fl.get('height') and not fl.get('width'):
             if fl.get('format_note') not in audio_tag:
                 audio_list.append(fl)
@@ -43,12 +45,15 @@ def parse_formats(title: str, formats: list) -> tuple:
             f_note = fl.get('format_note')
             f_note = f_note.lower()
             f_note = f_note.split('p')[0] + 'p'
-            if f_note not in hight_v and  f_note not in video_tag:
+            if f_note not in video_tag:
                 video_tag.append(f_note)
                 fl['format_note'] = f_note
                 video_list.append(fl)
+            else:
+                if fl.get('quality') > video_list[video_tag.index(f_note)].get('quality'):
+                    video_list[video_tag.index(f_note)] = fl
 
-    video_list.sort(key=lambda x: x.get('filesize'), reverse=True)
+    video_list.sort(key=lambda x: x.get('quality'), reverse=True)
     audio_list.sort(key=lambda x: x.get('filesize'), reverse=True)
     return video_list, audio_list
 
@@ -65,7 +70,7 @@ async def get_info(url: str) -> tuple:
             return parse_formats(title, result.get("formats"))
 
 
-def render_btn_list(url: str, videos: list, audios: list, num=5):
+def render_btn_list(url: str, videos: list, audios: list, num=3):
     video_btn = []
     audio_btn = []
     audio_dic = {}
@@ -79,13 +84,14 @@ def render_btn_list(url: str, videos: list, audios: list, num=5):
         a_id = audio_dic.get(dic.get('ext'))
         if not a_id:
             a_id = audios[0].get('format_id')
-        video_btn.append(InlineKeyboardButton(dic['format_note'], callback_data=f"{url}||{v_id}+{a_id}"))
+        video_btn.append(
+            InlineKeyboardButton(f"{dic['format_note']}{(dic['filesize'])}", callback_data=f"{url}||{v_id}+{a_id}"))
 
-    if len(audios) > num - 2:
-        audios = audios[:num - 2]
+    if len(audios) > num:
+        audios = audios[:num]
     for a in audios:
         a_id = a.get("format_id")
-        audio_btn.append(InlineKeyboardButton(a['format_note'], callback_data=f"{url}||{a_id}"))
+        audio_btn.append(InlineKeyboardButton(f"{a['format_note']}({a['filesize']}M)", callback_data=f"{url}||{a_id}"))
     return video_btn, audio_btn
 
 
@@ -106,9 +112,11 @@ async def download_file(download_msg=None, url='', format_id='best'):
     :return:
     """
 
+    loop = asyncio.get_event_loop()
+
     opt = {
-        "username":'zjgxs519@gmail.com',
-        "password":'zjgg219@zjg',
+        "username": '',
+        "password": '',
         "format": format_id,
         "format_id": format_id,
         "outtmpl": "%(title)s.%(ext)s",
@@ -117,10 +125,9 @@ async def download_file(download_msg=None, url='', format_id='best'):
         "final_ext": "%(ext)s",
         "trim_file_name": 50,
         "windowsfilenames": True,
-        "sleep_interval": random.random()
+        "sleep_interval": random.random(),
     }
     with yt_dlp.YoutubeDL(opt) as ydl:
-        loop = asyncio.get_event_loop()
         result = await loop.run_in_executor(None, ydl.extract_info, url, True)
         saved_path = await loop.run_in_executor(None, ydl.prepare_filename, result)
         title = result.get('title')
@@ -129,16 +136,25 @@ async def download_file(download_msg=None, url='', format_id='best'):
 
 async def upload_file(saved_path, client, chat_id, title):
     bar = '=' * 20
+    upload_loop = asyncio.get_event_loop()
+    start = upload_loop.time()
+    prev = 0
 
     async def progress(current, total):
+        global start, prev
         if current != total:
             symbol = re.sub('=', '>', bar, int(current * 20 / total))
 
             if int(current * 100 / total) % 10 == 0:
-                await asyncio.sleep(1)
+                await asyncio.sleep(0.1)
+                upload_loop = asyncio.get_event_loop()
                 try:
-                    await upload_f_msg.edit(f"{symbol} {current * 100 / total:.2f}%")
+                    speed = ((current - prev) / (1024 * 1024)) / (upload_loop.time() - start)
+                    await upload_f_msg.edit(
+                        f"{symbol} {current * 100 / total:.2f}% {speed:.2f}MB/s Total {total / 1024 / 1024:.2f}MB")
                     await client.send_chat_action(chat_id, enums.ChatAction.UPLOAD_VIDEO)
+                    prev = current
+                    start = upload_loop.time()
                 except FloodWait as e:
                     await asyncio.sleep(e.value)
         else:
