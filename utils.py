@@ -44,6 +44,7 @@ def parse_formats(title: str, formats: list) -> tuple:
         elif fl.get('height') and fl.get('width'):
             f_note = fl.get('format_note')
             f_note = f_note.lower()
+            # FIXME
             f_note = f_note.split('p')[0] + 'p'
             if f_note not in video_tag:
                 video_tag.append(f_note)
@@ -85,7 +86,7 @@ def render_btn_list(url: str, videos: list, audios: list, num=3):
         if not a_id:
             a_id = audios[0].get('format_id')
         video_btn.append(
-            InlineKeyboardButton(f"{dic['format_note']}{(dic['filesize'])}", callback_data=f"{url}||{v_id}+{a_id}"))
+            InlineKeyboardButton(f"{dic['format_note']}({dic['filesize']}M)", callback_data=f"{url}||{v_id}+{a_id}"))
 
     if len(audios) > num:
         audios = audios[:num]
