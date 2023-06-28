@@ -61,8 +61,7 @@ async def webpage(client, message):
                             video_btn,
                             audio_btn
                         ]
-                    ), disable_web_page_preview=True,
-                    reply_to_message_id=chat_id
+                    ), disable_web_page_preview=True, reply_to_message_id=chat_id, disable_notification=True
                 )
     else:
         await client.send_message(message.chat.id, "Send The Valid Url Please")
@@ -73,7 +72,7 @@ async def download(client, query):  # c Mean Client | q Mean Query
     chat_id = query.message.chat.id
     data = query.data
     url, opts = data.split("||")
-    download_f_msg = await client.send_message(chat_id, 'Start Downloading...')
+    download_f_msg = await client.send_message(chat_id, 'Start Downloading...', disable_notification=True)
     download_task = asyncio.create_task(download_file(download_msg=download_f_msg, url=url, format_id=opts))
     finished_download, unfinished = await asyncio.wait([download_task])
     for downloaded in finished_download:

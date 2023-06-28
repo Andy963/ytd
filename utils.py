@@ -161,7 +161,7 @@ async def upload_file(saved_path, client, chat_id, title):
         else:
             await upload_f_msg.delete()
 
-    upload_f_msg = await client.send_message(chat_id, bar + " upload will start soon")
+    upload_f_msg = await client.send_message(chat_id, bar + " upload will start soon", disable_notification=True)
     _, ext = os.path.splitext(saved_path)
     await client.send_video(chat_id, saved_path, caption=title,
                             file_name=f"{title}{ext}", supports_streaming=True,
