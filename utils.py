@@ -44,8 +44,8 @@ def parse_formats(title: str, formats: list) -> tuple:
         elif fl.get('height') and fl.get('width'):
             f_note = fl.get('format_note')
             f_note = f_note.lower()
-            # FIXME
-            f_note = f_note.split('p')[0] + 'p'
+            if f_note.endswith('p'):
+                f_note = f_note.split('p')[0] + 'p'
             if f_note not in video_tag:
                 video_tag.append(f_note)
                 fl['format_note'] = f_note
