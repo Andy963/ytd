@@ -20,7 +20,6 @@ upload_loop = None
 
 def parse_formats(title: str, formats: list) -> tuple:
     """get field from  extracted info"""
-    hight_v = ['4320p', '2160p', '1440p']
     video_list, video_tag = [], []
     audio_list, audio_tag = [], []
 
@@ -56,7 +55,7 @@ def parse_formats(title: str, formats: list) -> tuple:
 
     video_list.sort(key=lambda x: x.get('quality'), reverse=True)
     audio_list.sort(key=lambda x: x.get('filesize'), reverse=True)
-    return video_list, audio_list
+    return title, video_list, audio_list
 
 
 async def get_info(url: str) -> tuple:

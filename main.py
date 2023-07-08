@@ -39,7 +39,8 @@ async def webpage(client, message):
         get_task = asyncio.create_task(get_info(url))
         finished_get, unfinished = await asyncio.wait([get_task])
         for get in finished_get:
-            videos, audios = get.result()
+            title, videos, audios = get.result()
+            print(title)
             if not videos:
                 other_task = asyncio.create_task(download_file(url=url))
                 # wait args must be a list, and the return is a set
@@ -54,6 +55,7 @@ async def webpage(client, message):
                 await client.send_message(
                     chat_id,
                     (f"Good! {url} is a valid video url.\n"
+                     f"Title: {title}\n"
                      f"Now please select quality:\n"
                      ),
                     reply_markup=InlineKeyboardMarkup(
@@ -63,6 +65,7 @@ async def webpage(client, message):
                         ]
                     ), disable_web_page_preview=True, reply_to_message_id=chat_id, disable_notification=True
                 )
+                await client.delete_messages(chat_id, message.id)
     else:
         await client.send_message(message.chat.id, "Send The Valid Url Please")
 
