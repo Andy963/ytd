@@ -1,6 +1,6 @@
 README.md
 *__pycache__/
-Downloader.session
+*.session
 LICENSE
 ytd.conf
 Pipefile

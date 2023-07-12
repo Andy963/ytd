@@ -1,13 +1,15 @@
 # -*- coding: utf-8 -*-
 import asyncio
+import shutil
+from pathlib import Path
 
 import uvloop
 import validators
+import yt_dlp
 from pyrogram import Client, filters
-from pyrogram.types import InlineKeyboardMarkup
 
+import config
 from config import (api_id, api_hash, token)
-from utils import get_info, render_btn_list, download_file, remove_file, upload_file
 
 uvloop.install()
 app = Client("ytd", api_id, api_hash, bot_token=token, )
@@ -36,53 +38,39 @@ def start(_, message):
 async def webpage(client, message):
     url = message.text
     if validators.url(url):
-        get_task = asyncio.create_task(get_info(url))
-        finished_get, unfinished = await asyncio.wait([get_task])
-        for get in finished_get:
-            title, videos, audios = get.result()
-            print(title)
-            if not videos:
-                other_task = asyncio.create_task(download_file(url=url))
-                # wait args must be a list, and the return is a set
-                finished_others, _ = await asyncio.wait([other_task])
-                for finished_o in finished_others:
-                    saved_path, title = finished_o.result()
-                    await upload_file(saved_path, client, message.chat.id, title)
-                    await remove_file(saved_path)
+        loop = asyncio.get_event_loop()
+
+        opt = {
+            "username": '',
+            "password": '',
+            "format": 'bv*+ba/b',
+            "format_id": 'bv*+ba/b',
+            "outtmpl": "%(title)s.%(ext)s",
+            "noplaylist": True,
+            "writethumbnail": False,
+            "final_ext": "%(ext)s",
+            "trim_file_name": 50,
+            "windowsfilenames": True,
+        }
+        with yt_dlp.YoutubeDL(opt) as ydl:
+            result = await loop.run_in_executor(None, ydl.extract_info, url,
+                                                True)
+            saved_path = await loop.run_in_executor(None, ydl.prepare_filename,
+                                                    result)
+            title = result.get('title')
+            if Path(saved_path).exists():
+                if Path(saved_path) != Path(config.download_path):
+                    shutil.move(saved_path, config.download_path)
             else:
-                video_btn, audio_btn = render_btn_list(url, videos, audios)
-                chat_id = message.chat.id
-                await client.send_message(
-                    chat_id,
-                    (f"Good! {url} is a valid video url.\n"
-                     f"Title: {title}\n"
-                     f"Now please select quality:\n"
-                     ),
-                    reply_markup=InlineKeyboardMarkup(
-                        [
-                            video_btn,
-                            audio_btn
-                        ]
-                    ), disable_web_page_preview=True, reply_to_message_id=chat_id, disable_notification=True
-                )
-                await client.delete_messages(chat_id, message.id)
+                await client.send_message(message.chat.id, f"视频下载失败！")
+            await message.delete()
+            await client.send_message(message.chat.id,
+                                      f"URL: {url}\n"
+                                      f"Title: {title}\n"
+                                      f"视频下载完成！")
+
     else:
         await client.send_message(message.chat.id, "Send The Valid Url Please")
-
-
-@app.on_callback_query()
-async def download(client, query):  # c Mean Client | q Mean Query
-    chat_id = query.message.chat.id
-    data = query.data
-    url, opts = data.split("||")
-    download_f_msg = await client.send_message(chat_id, 'Start Downloading...', disable_notification=True)
-    download_task = asyncio.create_task(download_file(download_msg=download_f_msg, url=url, format_id=opts))
-    finished_download, unfinished = await asyncio.wait([download_task])
-    for downloaded in finished_download:
-        await download_f_msg.delete()
-        saved_path, title = downloaded.result()
-        await upload_file(saved_path, client, chat_id, title)
-        await remove_file(saved_path)
 
 
 if __name__ == '__main__':
