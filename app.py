@@ -1,18 +1,37 @@
+import asyncio
+import logging
 import shutil
 from pathlib import Path
 
+import validators
 import yt_dlp
-from telegram import Update, Message
-from telegram.constants import ParseMode
-from telegram.ext import ApplicationBuilder, ContextTypes
-from telegram.ext import filters, CommandHandler, \
-    MessageHandler, Application
+from aiogram import Bot, Dispatcher, Router, types
+from aiogram.filters import Command
+from aiogram.methods import SendMessage
+from aiogram.types import Message
 
-import config
+import config as config
+
+# Bot token can be obtained via https://t.me/BotFather
+TOKEN = config.telegram_token
+q = asyncio.Queue()
+# All handlers should be attached to the Router (or Dispatcher)
+router = Router()
+dp = Dispatcher()
+
+video_pattern = r"https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)"
 
 
-# 下载命令处理函数
-async def download(url: str, context: ContextTypes.DEFAULT_TYPE, tip: Message):
+@router.message(Command(commands=["start"]))
+async def command_start_handler(message: Message) -> None:
+    """
+    This handler receive messages with `/start` command
+    """
+    text = "Hi! I'm An Youtube Download Bot🤖\n\n Now you can send me a youtube link to download it."
+    await message.answer(text)
+
+
+def download(url: str):
     # 选择视频+音频格式
 
     opt = {
@@ -31,81 +50,53 @@ async def download(url: str, context: ContextTypes.DEFAULT_TYPE, tip: Message):
     filename = ydl.prepare_filename(info_dict)
     cur_path = Path(filename).absolute()
     if cur_path.parent != Path(config.download_path):
-        shutil.move(cur_path, config.download_path)
-    return title, filename
+        if not (Path(config.download_path) / filename).exists():
+            shutil.move(cur_path, config.download_path)
+        else:
+            shutil.move(cur_path, Path(config.download_path) / f'ytd/{title}.mp4')
+    return title
 
 
-command_list = [('start', 'Starts the bot'),
-                ]
+async def download_consumer(q, bot):
+    while True:
+        chat_id, url = await q.get()
+        title = download(url)
+
+        try:
+            await bot.send_message(chat_id=chat_id, text=f'<pre>{title}</pre>download finished!.',
+                                   disable_notification=True)
+        except Exception as e:
+            await bot.send_message(chat_id=chat_id, text=f"error occured:\n{e}",
+                                   disable_notification=True)
 
 
-async def init_menu(app: Application) -> None:
-    """init menu commands"""
-    await app.bot.set_my_commands(command_list)
-
-
-async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> \
-        None:
-    reply_text = "Hi! I'm An Youtube Download Bot🤖\n\n Now you " \
-                 "can send me a youtube link to download it."
-    await update.message.reply_text(reply_text, parse_mode=ParseMode.HTML)
-
-
-async def message_handler(update: Update,
-                          context: ContextTypes.DEFAULT_TYPE) -> None:
-    new_msg = await update.message.reply_text(
-        text=update.message.text,
-        disable_notification=True,
-        disable_web_page_preview=True
-    )
-    await update.message.delete()
-    tip_message = await context.bot.send_message(
-        text="Download will start soon, please wait...",
-        disable_notification=True,
-        chat_id=update.message.chat_id, parse_mode=ParseMode.HTML)
-    try:
-        title, filename = await download(update.message.text, context,
-                                         tip_message)
-        await update.message.reply_text(
-            text=f"Download success!  ✅\n"
-                 f"\t <pre>{update.message.text} </pre>\n\n"
-                 f"\t {title}\n",
-            disable_notification=True,
-            disable_web_page_preview=True,
-            parse_mode=ParseMode.HTML
-        )
-        await new_msg.delete()
-        await tip_message.delete()
-    except Exception as e:
-        await context.bot.edit_message_text(
-            text=f"{update.message.text}\n\n"
-                 f"Sorry, something went wrong.\n {e}",
-            chat_id=update.message.chat_id,
-            message_id=tip_message.message_id,
-            disable_web_page_preview=True
-        )
-
-
-application = (
-    ApplicationBuilder()
-    .token(config.telegram_token)
-    .post_init(init_menu)
-    .build()
-)
-
-
-def main():
-    if len(config.allowed_telegram_usernames) == 0:
-        user_filter = filters.ALL
+@dp.message()
+async def message_handler(message: types.Message) -> None:
+    if validators.url(message.text):
+        await SendMessage(chat_id=message.from_user.id, text=message.text,
+                          disable_web_page_preview=True, disable_notification=True)
+        await message.delete()
+        await q.put([message.from_user.id, message.text])
+        await SendMessage(chat_id=message.from_user.id,
+                          text=f'<pre>{message.text}</pre>will start download soon.',
+                          disable_notification=True)
     else:
-        user_filter = filters.User(username=config.allowed_telegram_usernames)
-    application.add_handler(
-        CommandHandler("start", start_handler, filters=user_filter))
-    application.add_handler(
-        MessageHandler(filters.TEXT & ~filters.COMMAND & user_filter,
-                       message_handler))
-    application.run_polling()
+        await SendMessage(chat_id=message.from_user.id, text='Please send me a valid youtube link.',
+                          disable_notification=True)
 
 
-if __name__ == '__main__':
-    main()
+async def main() -> None:
+    # Dispatcher is a root router
+    # ... and all other routers should be attached to Dispatcher
+    # Initialize Bot instance with a default parse mode which will be passed to all API calls
+    bot = Bot(TOKEN, parse_mode="HTML")
+    # And the run events dispatching
+
+    download_worker_task = asyncio.create_task(download_consumer(q, bot))
+    await dp.start_polling(bot)
+    await download_worker_task
+
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
+    asyncio.run(main())
