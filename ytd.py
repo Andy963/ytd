@@ -29,21 +29,29 @@ async def command_start_handler(message: Message) -> None:
 
 def download(url: str):
     video_opt = {
-        'outtmpl': '%(title)s.%(ext)s',
-        'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a],bestaudio[ext=m4a]',
+        "outtmpl": "%(title)s.%(ext)s",
+        "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a],bestaudio[ext=m4a]",
     }
+    exts = ["m4a", "mp4"]
 
-    with yt_dlp.YoutubeDL(video_opt) as ydl:
-        info_dict = ydl.extract_info(url, download=True)
-
-    title = info_dict.get('title')
+    if "youtu.be" in url:
+        with yt_dlp.YoutubeDL(video_opt) as ydl:
+            info_dict = ydl.extract_info(url, download=True)
+    else:
+        with yt_dlp.YoutubeDL() as ydl:
+            info_dict = ydl.extract_info(url, download=True)
     filename = ydl.prepare_filename(info_dict)
+    ext = Path(filename).suffix
+    if ext not in exts:
+        exts.append(ext)
     cur_path = Path(filename).absolute()
-    exts = ['m4a', 'mp4']
+    title = info_dict.get("title")
     name = Path(filename).stem
     for ext in exts:
-        f = f'{name}.{ext}'
-        cur_f = cur_path.parent / f'{name}.{ext}'
+        f = f"{name}.{ext}"
+        cur_f = cur_path.parent / f"{name}.{ext}"
+        if not cur_f.exists():
+            continue
         p_ = Path(config.download_path) / f
         if not p_.exists() and cur_f != p_:
             shutil.move(cur_f, config.download_path)
@@ -54,34 +62,36 @@ def download(url: str):
 
 @dp.message()
 async def message_handler(message: types.Message) -> None:
-    if validators.url(message.text):
+    if validators.url(url := message.text):
         url_msg = await SendMessage(
-            chat_id=message.from_user.id, text=message.text,
+            chat_id=message.from_user.id,
+            text=message.text,
             disable_web_page_preview=True,
-            disable_notification=True)
+            disable_notification=True,
+        )
         await message.delete()
         tip_msg = await SendMessage(
             chat_id=message.from_user.id,
-            text=f'<pre' f'>{message.text}</pre>will start download soon.',
-            disable_notification=True)
+            text=f"<pre" f">{message.text}</pre>will start download soon.",
+            disable_notification=True,
+        )
         chat_id = message.from_user.id
         title = download(message.text)
         await bot.delete_message(chat_id=chat_id, message_id=url_msg.message_id)
         await bot.delete_message(chat_id=chat_id, message_id=tip_msg.message_id)
-        await bot.send_message(chat_id=chat_id,
-                               text=f'<pre>{message.text}</pre>\n\n{title}\n\n download finished!')
+        await bot.send_message(
+            chat_id=chat_id,
+            text=f"<pre>{message.text}</pre>\n\n{title}\n\n download finished!",
+        )
     else:
-        await SendMessage(chat_id=message.from_user.id,
-                          text='Please send me a valid youtube link.',
-                          disable_notification=True)
+        await SendMessage(
+            chat_id=message.from_user.id,
+            text="Please send me a valid youtube link.",
+            disable_notification=True,
+        )
 
 
 async def main() -> None:
-    # Dispatcher is a root router
-    # ... and all other routers should be attached to Dispatcher
-    # Initialize Bot instance with a default parse mode which will be passed to all API calls
-    # And the run events dispatching
-
     await dp.start_polling(bot)
 
 
