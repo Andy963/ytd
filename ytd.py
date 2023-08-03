@@ -9,6 +9,7 @@ from aiogram import Bot, Dispatcher, Router, types
 from aiogram.filters import Command
 from aiogram.methods import SendMessage
 from aiogram.types import Message
+from pyrogram import Client
 
 import config as config
 
@@ -62,6 +63,32 @@ def download(url: str):
 
 @dp.message()
 async def message_handler(message: types.Message) -> None:
+    if message.video or message.audio:
+        file_id = message.video.file_id if message.video else message.audio.file_id
+        file_name = message.video.file_name if message.video else message.audio.file_name
+        start_msg = await bot.send_message(
+            chat_id=message.from_user.id, text="Downloading..."
+        )
+        async with Client(
+            "ytd",
+            api_id=config.api_id,
+            api_hash=config.api_hash,
+            bot_token=config.telegram_token,
+            in_memory=True,
+        ) as app:
+            await app.download_media(
+                file_id,
+                file_name=str(
+                    Path(config.download_path) / file_name
+                ),
+            )
+        await bot.delete_message(
+            chat_id=message.from_user.id, message_id=message.message_id
+        )
+        await bot.delete_message(
+            chat_id=message.from_user.id, message_id=start_msg.message_id
+        )
+        return
     if validators.url(url := message.text):
         url_msg = await SendMessage(
             chat_id=message.from_user.id,
