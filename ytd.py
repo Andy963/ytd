@@ -29,13 +29,15 @@ async def command_start_handler(message: Message) -> None:
 
 
 def download(url: str):
-    video_opt = {
-        "outtmpl": "%(title)s.%(ext)s",
-        "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a],bestaudio[ext=m4a]",
-    }
-    exts = ["m4a", "mp4"]
-
+    """
+    use yt-dlp to download video
+    """
     if "youtu.be" in url:
+        video_opt = {
+            "outtmpl": "%(title)s.%(ext)s",
+            "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a],bestaudio[ext=m4a]",
+        }
+        exts = ["m4a", "mp4"]
         with yt_dlp.YoutubeDL(video_opt) as ydl:
             info_dict = ydl.extract_info(url, download=True)
     else:
@@ -55,7 +57,7 @@ def download(url: str):
             continue
         p_ = Path(config.download_path) / f
         if not p_.exists() and cur_f != p_:
-            shutil.move(cur_f, config.download_path)
+            shutil.move(str(cur_f), config.download_path)
         else:
             cur_f.unlink()
     return title
@@ -63,12 +65,16 @@ def download(url: str):
 
 @dp.message()
 async def message_handler(message: types.Message) -> None:
+    chat_id = message.chat.id
+
+    # use pyrogram to download video, audio forward from other chat
+    # to bypass the 20MB limit
     if message.video or message.audio:
         file_id = message.video.file_id if message.video else message.audio.file_id
-        file_name = message.video.file_name if message.video else message.audio.file_name
-        start_msg = await bot.send_message(
-            chat_id=message.from_user.id, text="Downloading..."
+        file_name = (
+            message.video.file_name if message.video else message.audio.file_name
         )
+        start_msg = await bot.send_message(chat_id=chat_id, text="Downloading...")
         async with Client(
             "ytd",
             api_id=config.api_id,
@@ -78,32 +84,26 @@ async def message_handler(message: types.Message) -> None:
         ) as app:
             await app.download_media(
                 file_id,
-                file_name=str(
-                    Path(config.download_path) / file_name
-                ),
+                file_name=str(Path(config.download_path) / Path(file_name)),
             )
-        await bot.delete_message(
-            chat_id=message.from_user.id, message_id=message.message_id
-        )
-        await bot.delete_message(
-            chat_id=message.from_user.id, message_id=start_msg.message_id
-        )
+        await bot.delete_message(chat_id=chat_id, message_id=message.message_id)
+        await bot.delete_message(chat_id=chat_id, message_id=start_msg.message_id)
         return
+
     if validators.url(url := message.text):
         url_msg = await SendMessage(
-            chat_id=message.from_user.id,
-            text=message.text,
+            chat_id=chat_id,
+            text=url,
             disable_web_page_preview=True,
             disable_notification=True,
         )
         await message.delete()
         tip_msg = await SendMessage(
-            chat_id=message.from_user.id,
+            chat_id=chat_id,
             text=f"<pre" f">{message.text}</pre>will start download soon.",
             disable_notification=True,
         )
-        chat_id = message.from_user.id
-        title = download(message.text)
+        title = download(url)
         await bot.delete_message(chat_id=chat_id, message_id=url_msg.message_id)
         await bot.delete_message(chat_id=chat_id, message_id=tip_msg.message_id)
         await bot.send_message(
@@ -112,7 +112,7 @@ async def message_handler(message: types.Message) -> None:
         )
     else:
         await SendMessage(
-            chat_id=message.from_user.id,
+            chat_id=chat_id,
             text="Please send me a valid youtube link.",
             disable_notification=True,
         )
