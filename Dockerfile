@@ -5,6 +5,7 @@ ADD . /code
 WORKDIR /code
 COPY requirements.txt ./
 RUN apt-get update -y && \
+    apt-get install -y ffmpeg --no-install-recommends && \
     pip install --no-cache --upgrade pip && \
     pip install -r requirements.txt && \
     apt-get clean && \

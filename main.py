@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-import shutil
 from pathlib import Path
 
 import uvloop
@@ -25,6 +24,9 @@ def start(_, message):
         (
             f"Welcome to ytd-dl!\n"
             f"Just send Video or Audio url, and let me try to download."
+            f"Iif you want to download video(audio) and send to your telegram"
+            f"please send a url with /upload command. For example:\n"
+            f"/upload https://youtu.be/xxxxxx"
         )
     )
 
@@ -36,12 +38,20 @@ def download(url: str):
     video_filename, audio_filename = None, None
     if "youtu.be" in url:
         video_opt = {
-            "outtmpl": "%(title)sv.%(ext)s",
-            "format": "bestvideo+bestaudio",
+            "outtmpl": f"{download_path}/%(title)sv.mp4",
+            "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
+            "sanitize": True,
+            "ignoreerrors": True,
+            "restrictfilenames": True,
+            "retries": 3,
         }
         audio_opt = {
-            "outtmpl": "%(title)sa.%(ext)s",
+            "outtmpl": f"{download_path}/%(title)sa.mp3",
             "format": "bestaudio",
+            "sanitize": True,
+            "restrictfilenames": True,
+            "ignoreerrors": True,
+            "retries": 3,
         }
         with yt_dlp.YoutubeDL(video_opt) as ydl_video:
             info_dict_video = ydl_video.extract_info(url, download=True)
@@ -75,31 +85,17 @@ async def webpage(client, message):
             tip1 = await message.reply_text("media will start upload...")
             if audio_filename:
                 await client.send_chat_action(chat_id, enums.ChatAction.UPLOAD_AUDIO)
-                await client.send_video(
-                    chat_id, audio_filename, supports_streaming=True
-                )
-                Path(audio_filename).unlink()
+                with open(f"{audio_filename}", "rb") as af:
+                    await client.send_audio(
+                        chat_id, audio=af, title=Path(audio_filename).stem
+                    )
+                    Path(audio_filename).unlink()
             if video_filename:
                 await client.send_chat_action(chat_id, enums.ChatAction.UPLOAD_VIDEO)
-                await client.send_video(
-                    chat_id,
-                    video_filename,
-                    supports_streaming=True,
-                )
+                with open(f"{video_filename}", "rb") as vf:
+                    await client.send_video(chat_id, video=vf, supports_streaming=True)
                 Path(video_filename).unlink()
             await tip1.delete()
-            await message.reply_text(
-                text="url solved.",
-                disable_notification=True,
-                reply_to_message_id=message_id,
-            )
-            return
-        p_v = Path(download_path) / video_filename
-        a_v = Path(download_path) / audio_filename
-        if not p_v.exists() and video_filename != p_v:
-            shutil.move(str(video_filename), download_path)
-        if not a_v.exists() and audio_filename != a_v:
-            shutil.move(str(audio_filename), download_path)
         await message.reply_text(
             text="url solved.",
             disable_notification=True,
