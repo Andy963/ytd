@@ -32,12 +32,12 @@ def download(url: str):
     """
     use yt-dlp to download video
     """
+    exts = ["m4a", "mp4"]
     if "youtu.be" in url:
         video_opt = {
             "outtmpl": "%(title)s.%(ext)s",
             "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a],bestaudio[ext=m4a]",
         }
-        exts = ["m4a", "mp4"]
         with yt_dlp.YoutubeDL(video_opt) as ydl:
             info_dict = ydl.extract_info(url, download=True)
     else:
