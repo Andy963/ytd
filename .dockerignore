@@ -2,6 +2,7 @@ README.md
 *__pycache__/
 *.session
 LICENSE
-ytd.conf
 Pipefile
 Pipefile.lock
+.venv
+.mypy_cache
