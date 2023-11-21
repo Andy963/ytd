@@ -37,7 +37,7 @@ def download(url: str):
     if "youtu.be" in url:
         video_opt = {
             "outtmpl": "%(title)sv.%(ext)s",
-            "format": "bestvideo",
+            "format": "bestvideo+bestaudio",
         }
         audio_opt = {
             "outtmpl": "%(title)sa.%(ext)s",
